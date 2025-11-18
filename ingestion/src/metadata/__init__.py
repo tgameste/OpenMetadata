@@ -11,6 +11,8 @@
 """
 OpenMetadata package initialization.
 """
+__path__ = __import__("pkgutil").extend_path(__path__, __name__)
+
 from typing import Type
 
 from metadata.profiler.api.models import ProfilerProcessorConfig

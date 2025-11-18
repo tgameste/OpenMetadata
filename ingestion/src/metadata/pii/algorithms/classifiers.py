@@ -49,6 +49,7 @@ from metadata.pii.algorithms.presidio_utils import (
     set_presidio_logger_level,
 )
 from metadata.pii.algorithms.tags import PIISensitivityTag, PIITag
+from metadata.pii.models import ScoredTag
 from metadata.pii.tag_analyzer import TagAnalyzer
 
 T = TypeVar("T", bound=Hashable)
@@ -188,9 +189,9 @@ class PIISensitiveClassifier(ColumnClassifier[PIISensitivityTag]):
 
 
 @final
-class TagClassifier(ColumnClassifier[str]):
+class TagClassifier(ColumnClassifier[ScoredTag]):
     """
-    Heuristic PII Column Classifier
+    Tag classifier that returns ScoredTag objects with detailed match information.
     """
 
     def __init__(
@@ -203,7 +204,7 @@ class TagClassifier(ColumnClassifier[str]):
     ):
         set_presidio_logger_level()
 
-        self._analyzers = tag_analyzers
+        self._analyzers = list(tag_analyzers)
 
         self._column_name_contribution = column_name_contribution
         self._score_cutoff = score_cutoff
@@ -214,7 +215,7 @@ class TagClassifier(ColumnClassifier[str]):
         sample_data: Sequence[Any],
         column_name: Optional[str] = None,
         column_data_type: Optional[DataType] = None,
-    ) -> Mapping[str, float]:
+    ) -> Mapping[ScoredTag, float]:
         str_values = preprocess_values(sample_data)
 
         if not str_values:
@@ -225,7 +226,7 @@ class TagClassifier(ColumnClassifier[str]):
         if len(unique_values) / len(str_values) < self._relative_cardinality_cutoff:
             return {}
 
-        results: dict[str, float] = defaultdict(float)
+        results: Dict[ScoredTag, float] = {}
         for analyzer in self._analyzers:
             content_score = analyzer.analyze_content(values=str_values)
             column_score = 0.0
@@ -235,8 +236,43 @@ class TagClassifier(ColumnClassifier[str]):
 
             total_score = content_score + column_score
             if total_score > self._score_cutoff:
-                results[str(analyzer.tag.fullyQualifiedName)] = (
-                    content_score + column_score
+                reason = self._build_reason(
+                    analyzer=analyzer,
+                    content_score=content_score,
+                    column_score=column_score,
                 )
 
+                classification_name = (
+                    analyzer.tag.classification.name.root
+                    if analyzer.tag.classification
+                    else "Unknown"
+                )
+
+                priority = analyzer.tag.autoClassificationPriority or 50
+
+                scored_tag = ScoredTag(
+                    tag=analyzer.tag,
+                    score=total_score,
+                    classification_name=classification_name,
+                    priority=priority,
+                    reason=reason,
+                )
+
+                results[scored_tag] = total_score
+
         return results
+
+    def _build_reason(
+        self, analyzer: TagAnalyzer, content_score: float, column_score: float
+    ) -> str:
+        """Build a human-readable reason for why this tag was matched."""
+        parts = []
+        if content_score > 0:
+            parts.append(f"content match (score: {content_score:.2f})")
+        if column_score > 0:
+            parts.append(f"column name match (score: {column_score:.2f})")
+
+        if not parts:
+            return f"Detected by {analyzer.tag.name.root} recognizer"
+
+        return f"Detected by {analyzer.tag.name.root} recognizer: {', '.join(parts)}"
