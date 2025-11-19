@@ -43,11 +43,16 @@ services:
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.4
+    platform: linux/arm64  # Explicit ARM64 platform support
     container_name: openmetadata_elasticsearch
     environment:
       - discovery.type=single-node
-      - ES_JAVA_OPTS=-Xms1024m -Xmx1024m
+      # JVM options with ARM64 compatibility flags to prevent SIGILL errors
+      # Disable CPU intrinsics that may not be available in emulated ARM64 environments
+      - ES_JAVA_OPTS=-Xms1024m -Xmx1024m -XX:+UnlockDiagnosticVMOptions -XX:-UseAESCTRIntrinsics -XX:-UseAESIntrinsics -XX:-UseCRC32Intrinsics -XX:-UseCRC32CIntrinsics -XX:-UseSHAIntrinsics -XX:-UseSHA1Intrinsics -XX:-UseSHA256Intrinsics -XX:-UseSHA512Intrinsics
       - xpack.security.enabled=false
+      # Disable bootstrap checks that might fail on ARM64
+      - bootstrap.memory_lock=false
     networks:
       - local_app_net
     expose:
@@ -63,6 +68,13 @@ services:
       retries: 10
     volumes:
       - es-data:/usr/share/elasticsearch/data
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
   
   execute-migrate-all:
     build:

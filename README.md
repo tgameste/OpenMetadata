@@ -74,7 +74,11 @@ OpenMetadata Consists of Four Main Components:
 Take a look and play with sample data at [http://sandbox.open-metadata.org](http://sandbox.open-metadata.org)
 
 ## Install and Run OpenMetadata
-Get up and running in a few minutes. See the OpenMetadata documentation for [installation instructions](https://docs.open-metadata.org/quick-start/local-docker-deployment).
+Get up and running in a few minutes. See the OpenMetadata documentation for [installation instructions](https://dDOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
+
+mkdir -p $DOCKER_CONFIG/cli-plugins
+curl -SL https://github.com/docker/compose/releases/download/v2.2.3/docker-compose-linux-x86_64 -o
+$DOCKER_CONFIG/cli-plugins/docker-composeocs.open-metadata.org/quick-start/local-docker-deployment).
 
 ## Documentation and Support
 
